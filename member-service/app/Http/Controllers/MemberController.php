@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Member;
+use App\Jobs\SendWelcomeNotificationJob;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
@@ -47,7 +48,6 @@ class MemberController extends Controller
             'name'    => 'required|string|max:255',
             'email'   => 'required|email|unique:members,email',
             'phone'   => 'required|string|max:20',
-            'address' => 'required|string|max:500',
         ]);
 
         if ($validator->fails()) {
@@ -59,6 +59,11 @@ class MemberController extends Controller
         }
 
         $member = Member::create($validator->validated());
+
+        // Dispatch job ke Redis queue (Message Broker)
+        // Proses ini berjalan async di background lewat queue-worker,
+        // tidak menghambat response API ke client.
+        SendWelcomeNotificationJob::dispatch($member->name, $member->email);
 
         return $this->apiResponse('success', 'Member berhasil dibuat', $member, 201);
     }
@@ -76,7 +81,6 @@ class MemberController extends Controller
             'name'    => 'sometimes|required|string|max:255',
             'email'   => 'sometimes|required|email|unique:members,email,' . $id,
             'phone'   => 'sometimes|required|string|max:20',
-            'address' => 'sometimes|required|string|max:500',
         ]);
 
         if ($validator->fails()) {
